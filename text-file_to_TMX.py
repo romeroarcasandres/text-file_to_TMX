@@ -1,4 +1,5 @@
 import os
+import re
 import xml.etree.ElementTree as ET
 
 def prompt_directory():
@@ -12,15 +13,17 @@ def prompt_directory():
 def list_files_with_extension_check(directory, extensions):
     """List files in the directory and prompt for missing extensions."""
     files = []
+    asked_extensions = set()
     for filename in os.listdir(directory):
         ext = os.path.splitext(filename)[1]
         if ext in extensions:
             files.append(filename)
-        else:
+        elif ext not in asked_extensions:
+            asked_extensions.add(ext)
             print(f"Unrecognized extension '{ext}' for file: {filename}")
             add_lang = input(f"Would you like to add '{ext}' to the recognized extensions? (y/n): ").strip().lower()
             if add_lang == 'y':
-                extensions.add(ext)  # Directly add the extension
+                extensions.add(ext)
                 print(f"Extension '{ext}' has been added to the recognized list.")
                 files.append(filename)
     return files
@@ -40,8 +43,12 @@ def prompt_file_selection(files, file_type):
         print("Invalid selection. Please try again.")
 
 def prompt_language(prompt):
-    """Prompt the user to input a language code."""
-    return input(f"Enter the {prompt} language code (e.g., 'en', 'fr'): ").strip()
+    """Prompt the user to input a valid language code."""
+    while True:
+        lang_code = input(f"Enter the {prompt} language code (e.g., 'en', 'fr'): ").strip()
+        if re.match(r'^[a-z]{2}(-[A-Z]{2})?$', lang_code):
+            return lang_code
+        print("Invalid language code format. Please try again.")
 
 def read_file_lines(filepath):
     """Read lines from a file."""
@@ -74,8 +81,13 @@ def create_tmx(source_file, target_file, source_lang, target_lang, output_file):
 
     for src, tgt in zip(source_lines, target_lines):
         tu = ET.SubElement(body, "tu")
-        ET.SubElement(tu, "tuv", attrib={"xml:lang": source_lang}).append(ET.Element("seg", text=src))
-        ET.SubElement(tu, "tuv", attrib={"xml:lang": target_lang}).append(ET.Element("seg", text=tgt))
+        src_tuv = ET.SubElement(tu, "tuv", attrib={"xml:lang": source_lang})
+        src_seg = ET.SubElement(src_tuv, "seg")
+        src_seg.text = src  # Assign text directly without CDATA
+
+        tgt_tuv = ET.SubElement(tu, "tuv", attrib={"xml:lang": target_lang})
+        tgt_seg = ET.SubElement(tgt_tuv, "seg")
+        tgt_seg.text = tgt  # Assign text directly without CDATA
 
     tree = ET.ElementTree(tmx)
     ET.indent(tree, space="  ", level=0)  # Pretty print
@@ -87,7 +99,6 @@ def main():
     directory = prompt_directory()
 
     # List and select files
-    # Add all language code extensions and .txt
     extensions = {".en", ".fr", ".es", ".de", ".it", ".ru", ".ar", ".jp", ".ko", ".pt", ".nl", ".sv", ".txt"}
     files = list_files_with_extension_check(directory, extensions)
     if not files:
